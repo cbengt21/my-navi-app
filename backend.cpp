@@ -26,12 +26,12 @@ void printtoconsole(std::string message)
 }
 
 // Haversine formula to calculate distance between two GPS coordinates
-double haversine(double lat1, double lon1, double lat2, double lon2)
+float haversine(float lat1, float lon1, float lat2, float lon2)
 {
-    constexpr double R = 6371e3;
-    double dLat = (lat2 - lat1) * M_PI / 180.0;
-    double dLon = (lon2 - lon1) * M_PI / 180.0;
-    double a = sin(dLat / 2) * sin(dLat / 2) +
+    constexpr float R = 6371e3;
+    float dLat = (lat2 - lat1) * M_PI / 180.0;
+    float dLon = (lon2 - lon1) * M_PI / 180.0;
+    float a = sin(dLat / 2) * sin(dLat / 2) +
                cos(lat1 * M_PI / 180.0) * cos(lat2 * M_PI / 180.0) *
                    sin(dLon / 2) * sin(dLon / 2);
     return R * (2 * atan2(sqrt(a), sqrt(1 - a)));
@@ -40,12 +40,12 @@ double haversine(double lat1, double lon1, double lat2, double lon2)
 // Graph representation
 struct Node
 {
-    double lat, lon;
+    float lat, lon;
 };
 struct Edge
 {
     int64_t to;
-    double weight;
+    float weight;
 };
 
 // Graph class, with Dijkstra's algorithm and WebSocket server
@@ -59,7 +59,7 @@ public:
     std::unordered_map<int64_t, std::shared_ptr<Node>> nodes; // Node ID -> (lat, lon)
 
     // addNode and addEdge methods to build the graph:
-    void addNode(int64_t id, double lat, double lon)
+    void addNode(int64_t id, float lat, float lon)
     {
         // Only add the node if it doesn't already exist
         if (nodes.find(id) == nodes.end())
@@ -72,7 +72,7 @@ public:
     {
         if (nodes.count(u) && nodes.count(v))
         {
-            double distance = haversine(nodes[u]->lat, nodes[u]->lon, nodes[v]->lat, nodes[v]->lon);
+            float distance = haversine(nodes[u]->lat, nodes[u]->lon, nodes[v]->lat, nodes[v]->lon);
             adjList[u].push_back({v, distance});
             adjList[v].push_back({u, distance});
         }
@@ -88,8 +88,8 @@ public:
     // Dijkstra's algorithm:
     std::vector<int64_t> dijkstra(int64_t current, int64_t target)
     {
-        std::priority_queue<std::pair<double, int64_t>, std::vector<std::pair<double, int64_t>>, std::greater<>> pq;
-        std::unordered_map<int64_t, double> distances;
+        std::priority_queue<std::pair<float, int64_t>, std::vector<std::pair<float, int64_t>>, std::greater<>> pq;
+        std::unordered_map<int64_t, float> distances;
         std::unordered_map<int64_t, int64_t> previous;
 
         for (auto &[id, _] : nodes)
@@ -106,7 +106,7 @@ public:
 
             for (auto &[next, weight] : adjList[current])
             {
-                double newDist = currentDist + weight;
+                float newDist = currentDist + weight;
                 if (newDist < distances[next])
                 {
                     distances[next] = newDist;
@@ -145,11 +145,11 @@ public:
                              nodes[to]->lat, nodes[to]->lon);
         };
 
-        using PQEntry = std::pair<double, int64_t>; // (f_score, node)
+        using PQEntry = std::pair<float, int64_t>; // (f_score, node)
         std::priority_queue<PQEntry, std::vector<PQEntry>, std::greater<>> pq;
 
-        std::unordered_map<int64_t, double> g_score;   // Distance from start
-        std::unordered_map<int64_t, double> f_score;   // g + h
+        std::unordered_map<int64_t, float> g_score;   // Distance from start
+        std::unordered_map<int64_t, float> f_score;   // g + h
         std::unordered_map<int64_t, int64_t> previous; // Path reconstruction
 
         for (const auto &[id, _] : nodes)
@@ -172,7 +172,7 @@ public:
 
             for (const auto &[neighbor, weight] : adjList[current])
             {
-                double tentative_g = g_score[current] + weight;
+                float tentative_g = g_score[current] + weight;
                 if (tentative_g < g_score[neighbor])
                 {
                     g_score[neighbor] = tentative_g;
@@ -252,10 +252,10 @@ public:
                             std::cout << "Parsed JSON successfully" << std::endl;
 
                             // Extract the start and end coordinates
-                            double start_lat = json_msg["start"]["lat"];
-                            double start_lon = json_msg["start"]["lon"];
-                            double end_lat = json_msg["end"]["lat"];
-                            double end_lon = json_msg["end"]["lon"];
+                            float start_lat = json_msg["start"]["lat"];
+                            float start_lon = json_msg["start"]["lon"];
+                            float end_lat = json_msg["end"]["lat"];
+                            float end_lon = json_msg["end"]["lon"];
                             std::cout << "Extracted coordinates successfully " << start_lat << " " << start_lon << " " << end_lat << " " << end_lon << std::endl;
 
                             // Find the nearest nodes to the start and end coordinates
@@ -284,16 +284,16 @@ public:
         app.port(18080).multithreaded().run();
     }
 
-    int64_t findNearestNode(double lat, double lon)
+    int64_t findNearestNode(float lat, float lon)
     {
         int64_t nearest_node = -1;
-        double min_distance = std::numeric_limits<double>::max();
+        float min_distance = std::numeric_limits<float>::max();
 
         for (const auto &[id, node] : nodes)
         {
             if (node) // Ensure node is not null
             {
-                double distance = haversine(lat, lon, node->lat, node->lon);
+                float distance = haversine(lat, lon, node->lat, node->lon);
                 // std::cout << "Node " << id << ": distance = " << distance << std::endl;
                 if (distance < min_distance)
                 {
@@ -327,7 +327,7 @@ class OSMHandler : public osmium::handler::Handler
     size_t way_count = 0;
 
 public:
-    std::unordered_map<int64_t, std::pair<double, double>> temp_nodes; // Temporarily store node locations
+    std::unordered_map<int64_t, std::pair<float, float>> temp_nodes; // Temporarily store node locations
     // Constructor:
     OSMHandler(Graph &g, const osmium::Box &box) : graph(g), bbox(box) { printBoundingBox(); }
 
@@ -425,7 +425,7 @@ public:
     }
 };
 
-void loadTile(Graph &g, double min_lon, double min_lat, double max_lon, double max_lat, std::string file_path)
+void loadTile(Graph &g, float min_lon, float min_lat, float max_lon, float max_lat, std::string file_path)
 {
     osmium::Box bbox(osmium::Location(min_lon, min_lat), osmium::Location(max_lon, max_lat));
     // std::cout << "Bounding box: (" << min_lon << ", " << min_lat << ") to (" << max_lon << ", " << max_lat << "), (long, lat)" << std::endl;
@@ -446,30 +446,30 @@ int main()
     Graph g;
     try
     {
-        std::string file_path = "sweden-latest.osm.pbf";
+        std::string file_path = "../../sweden-latest.osm.pbf";
         std::cout << "Attempting to open file: " << file_path << std::endl;
 
         // Define the user's location (example coordinates), Alexanderplatz, Berlin:
-        // double user_lon = 13.413215;
-        // double user_lat = 52.521919;
+        // float user_lon = 13.413215;
+        // float user_lat = 52.521919;
         // Define the user's location (example coordinates), kungsbacka, Sweden:
-        // constexpr double user_lon = 12.0061952;
-        // constexpr double user_lat = 57.6847872;
+        // constexpr float user_lon = 12.0061952;
+        // constexpr float user_lat = 57.6847872;
 
         // Define the tile size (1x1 degree)
-        // constexpr double tile_size = 3.0;
+        // constexpr float tile_size = 3.0;
 
         // Calculate the bounding box for the tile containing the user's location
-        /*constexpr double min_lat = user_lat - tile_size / 2.0;
-        constexpr double max_lat = user_lat + tile_size / 2.0;
-        constexpr double min_lon = user_lon - tile_size / 2.0;
-        constexpr double max_lon = user_lon + tile_size / 2.0;*/
+        /*constexpr float min_lat = user_lat - tile_size / 2.0;
+        constexpr float max_lat = user_lat + tile_size / 2.0;
+        constexpr float min_lon = user_lon - tile_size / 2.0;
+        constexpr float max_lon = user_lon + tile_size / 2.0;*/
 
         // Use the whole map:
-        constexpr double min_lat = -90.0;
-        constexpr double max_lat = 90.0;
-        constexpr double min_lon = -180.0;
-        constexpr double max_lon = 180.0;
+        constexpr float min_lat = -90.0;
+        constexpr float max_lat = 90.0;
+        constexpr float min_lon = -180.0;
+        constexpr float max_lon = 180.0;
 
         // Load and process the tile
         loadTile(g, min_lon, min_lat, max_lon, max_lat, file_path);
