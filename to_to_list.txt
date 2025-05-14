@@ -1,0 +1,31 @@
+1. Enable Front-end search. -> Done
+2. Get coordinates (lat, lon) of destination to be able to send it with start pos to back-end. -> Done
+3. Connect front-end and back-end. -> Done
+4. Ensure correct nearest nodes are found. -> Done
+5. Make route calculation and send it to front end for printing. -> Done
+6. Create repo with web page.
+7. Make them run together over internet with Raspberry PI 5.
+8. 
+
+
+Make the current position user marker "blink".
+Make the route re-calculate if current position "avviker" från rutt.
+
+
+
+Ways Reference Nodes by ID
+OSM ways do not contain coordinates; they only reference node IDs.
+Example from an .osm file:
+<way id="123">
+    <nd ref="1001"/>
+    <nd ref="1002"/>
+    <nd ref="1003"/>
+    <tag k="highway" v="primary"/>
+</way>
+
+Nodes Are Defined Separately
+Example node definitions:
+<node id="1001" lat="52.1" lon="13.4"/>
+<node id="1002" lat="52.2" lon="13.5"/>
+<node id="1003" lat="52.3" lon="13.6"/>
+
