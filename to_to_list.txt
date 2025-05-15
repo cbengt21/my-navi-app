@@ -4,14 +4,15 @@
 4. Ensure correct nearest nodes are found. -> Done
 5. Make route calculation and send it to front end for printing. -> Done
 6. Create repo with web page. -> Done
-7. recalculate route when position changes
-8. load tiles dynamically
+7. Remove old route and target when searching for a new one. -> Done
+8. Use less memory/load tiles dynamically.
 9. Better route calculations:
  - A* search           Use heuristic to cut graph   ~10x speedup
  - KD-tree / R-tree    Fast nearest node 	        ~1000x faster
  - Use -O3	            Compiler optimization	    2–5x speedup -> Done
-
-10. Make them run together over internet with Raspberry PI 5.
+10. recalculate route when position changes
+11. Make them run together over internet with Raspberry PI 5.
+12. pull from github to raspberry pi 5 on push to github. Build and run automatically.
 
 
 

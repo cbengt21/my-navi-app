@@ -443,7 +443,9 @@ void loadTile(Graph &g, float min_lon, float min_lat, float max_lon, float max_l
     std::cout << "Time taken to load tile: " << duration.count() << " milliseconds" << std::endl;
     std::cout << "Total nodes loaded: " << g.nodes.size() << std::endl;
     reader.close();
-    // std::cout << "Size of temp_nodes: " << handler.temp_nodes.size() << std::endl;
+    //std::cout << "Size of temp_nodes: " << handler.temp_nodes.size() << std::endl;
+    handler.temp_nodes.clear(); // Clear the temporary nodes
+    std::unordered_map<int64_t, std::pair<float, float>>().swap(handler.temp_nodes);
 }
 
 int main()

@@ -89,7 +89,8 @@
         let currentLatLng;
         let targetLatLng;
         let geocoder; // Declare geocoder outside initMap to avoid re-adding it multiple times
-
+        let polyline;
+        let targetMarker; // Variable to store the target marker
 
         function initMap(lat, lon) {
             currentLatLng = L.latLng(lat, lon);
@@ -108,8 +109,14 @@
                     map.setView(targetLatLng, 13);
                     console.log("Geocode result:", targetLatLng);  // Log the search result
 
+                    // Remove the previous target marker if it exists
+                    if (targetMarker) {
+                        map.removeLayer(targetMarker);
+                        console.log("Previous target marker removed.");
+                    }
+
                     // Add marker at search location
-                    L.marker(targetLatLng).addTo(map).bindPopup('' + e.geocode.name).openPopup();
+                    targetMarker = L.marker(targetLatLng).addTo(map).bindPopup('' + e.geocode.name).openPopup();
 
                     // Update routeBounds to include both current position & search result
                     if (currentLatLng) {
@@ -209,8 +216,14 @@
             let pathCoords = data.path.map(p => [p.lat, p.lon]);
             console.log("Path coordinates:", pathCoords);
 
+            // Remove the existing polyline if it exists
+            if (polyline) {
+                map.removeLayer(polyline);
+                console.log("Previous polyline removed.");
+            }
+
             // Add the polyline to the map
-            let polyline = L.polyline(pathCoords, { color: 'blue' }).addTo(map);
+            polyline = L.polyline(pathCoords, { color: 'blue' }).addTo(map);
             console.log("Polyline added to map:", polyline);
 
             // Fit the map's view to the polyline
