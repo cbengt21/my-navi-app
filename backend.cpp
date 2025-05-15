@@ -32,8 +32,8 @@ float haversine(float lat1, float lon1, float lat2, float lon2)
     float dLat = (lat2 - lat1) * M_PI / 180.0;
     float dLon = (lon2 - lon1) * M_PI / 180.0;
     float a = sin(dLat / 2) * sin(dLat / 2) +
-               cos(lat1 * M_PI / 180.0) * cos(lat2 * M_PI / 180.0) *
-                   sin(dLon / 2) * sin(dLon / 2);
+              cos(lat1 * M_PI / 180.0) * cos(lat2 * M_PI / 180.0) *
+                  sin(dLon / 2) * sin(dLon / 2);
     return R * (2 * atan2(sqrt(a), sqrt(1 - a)));
 }
 
@@ -88,6 +88,7 @@ public:
     // Dijkstra's algorithm:
     std::vector<int64_t> dijkstra(int64_t current, int64_t target)
     {
+        std::cout << "Running Dijkstra algo" << std::endl;
         std::priority_queue<std::pair<float, int64_t>, std::vector<std::pair<float, int64_t>>, std::greater<>> pq;
         std::unordered_map<int64_t, float> distances;
         std::unordered_map<int64_t, int64_t> previous;
@@ -139,6 +140,7 @@ public:
     // A* algorithm:
     std::vector<int64_t> a_star(int64_t start, int64_t target)
     {
+        std::cout << "Running A* algo" << std::endl;
         auto heuristic = [this](int64_t from, int64_t to)
         {
             return haversine(nodes[from]->lat, nodes[from]->lon,
@@ -148,8 +150,8 @@ public:
         using PQEntry = std::pair<float, int64_t>; // (f_score, node)
         std::priority_queue<PQEntry, std::vector<PQEntry>, std::greater<>> pq;
 
-        std::unordered_map<int64_t, float> g_score;   // Distance from start
-        std::unordered_map<int64_t, float> f_score;   // g + h
+        std::unordered_map<int64_t, float> g_score;    // Distance from start
+        std::unordered_map<int64_t, float> f_score;    // g + h
         std::unordered_map<int64_t, int64_t> previous; // Path reconstruction
 
         for (const auto &[id, _] : nodes)
@@ -205,7 +207,6 @@ public:
 
     crow::json::wvalue getPathAsJSON(int64_t current, int64_t target)
     {
-        std::cout << "Running Dijkstra algo" << std::endl;
         auto path = dijkstra(current, target);
         // auto path = a_star(current, target);
         std::cout << "Dijkstra algo completed" << std::endl;
@@ -268,8 +269,8 @@ public:
                             crow::json::wvalue response = getPathAsJSON(start_node, end_node);
                             std::cout << "Generated path JSON successfully" << std::endl;
                             auto stop = high_resolution_clock::now();
-                            auto duration = duration_cast<microseconds>(stop - start);
-                            std::cout << "Time taken by function: " << duration.count() << " microseconds" << std::endl;
+                            auto duration = duration_cast<milliseconds>(stop - start);
+                            std::cout << "Time taken to find route: " << duration.count() << " milliseconds" << std::endl;
 
                             conn.send_text(response.dump());
                         }
@@ -427,6 +428,7 @@ public:
 
 void loadTile(Graph &g, float min_lon, float min_lat, float max_lon, float max_lat, std::string file_path)
 {
+    auto start = high_resolution_clock::now();
     osmium::Box bbox(osmium::Location(min_lon, min_lat), osmium::Location(max_lon, max_lat));
     // std::cout << "Bounding box: (" << min_lon << ", " << min_lat << ") to (" << max_lon << ", " << max_lat << "), (long, lat)" << std::endl;
     OSMHandler handler(g, bbox);
@@ -436,6 +438,9 @@ void loadTile(Graph &g, float min_lon, float min_lat, float max_lon, float max_l
 
     // Process ways and nodes together
     osmium::apply(reader, handler);
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(stop - start);
+    std::cout << "Time taken to load tile: " << duration.count() << " milliseconds" << std::endl;
     std::cout << "Total nodes loaded: " << g.nodes.size() << std::endl;
     reader.close();
     // std::cout << "Size of temp_nodes: " << handler.temp_nodes.size() << std::endl;

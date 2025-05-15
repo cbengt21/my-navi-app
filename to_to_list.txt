@@ -3,13 +3,17 @@
 3. Connect front-end and back-end. -> Done
 4. Ensure correct nearest nodes are found. -> Done
 5. Make route calculation and send it to front end for printing. -> Done
-6. Create repo with web page.
-7. Make them run together over internet with Raspberry PI 5.
-8. 
+6. Create repo with web page. -> Done
+7. recalculate route when position changes
+8. load tiles dynamically
+9. Better route calculations:
+ - A* search           Use heuristic to cut graph   ~10x speedup
+ - KD-tree / R-tree    Fast nearest node 	        ~1000x faster
+ - Use -O3	            Compiler optimization	    2–5x speedup -> Done
+
+10. Make them run together over internet with Raspberry PI 5.
 
 
-Make the current position user marker "blink".
-Make the route re-calculate if current position "avviker" från rutt.
 
 
 
