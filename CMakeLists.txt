@@ -19,6 +19,7 @@ include_directories(
     /usr/include/boost
     /usr/include/asio
     /usr/local/include/asio
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 # Set the path to the Osmium package configuration file
@@ -30,7 +31,12 @@ find_package(ZLIB REQUIRED)
 find_package(nlohmann_json REQUIRED)
 
 # Add source files
-set(SOURCE_FILES backend.cpp)
+set(SOURCE_FILES 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/graph.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OSMHandler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cpp
+    )
 
 # Link directories
 link_directories(/usr/local/lib /usr/lib/x86_64-linux-gnu)
