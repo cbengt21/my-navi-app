@@ -151,23 +151,32 @@
 
         // Get user's current position using Geolocation API
         if (navigator.geolocation) {
-            navigator.geolocation.watchPosition(
-                function (position) {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    console.log("User position updated:", lat, lon);
-                    initMap(lat, lon);
-                },
-                function (error) {
-                    alert("Failed to retrieve location: " + error.message);
-                    initMap(59.3293, 18.0686);
-                },
-                {
-                    enableHighAccuracy: true,
-                    maximumAge: 5000,
-                    timeout: 10000
-                }
-            );
+            // Try high accuracy first, fall back to low accuracy on failure
+            function startWatching(highAccuracy) {
+                navigator.geolocation.watchPosition(
+                    function (position) {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        console.log("User position updated:", lat, lon, "(highAccuracy:", highAccuracy, ")");
+                        initMap(lat, lon);
+                    },
+                    function (error) {
+                        if (highAccuracy) {
+                            console.warn("High accuracy failed, falling back to low accuracy:", error.message);
+                            startWatching(false);
+                        } else {
+                            alert("Failed to retrieve location: " + error.message);
+                            initMap(59.3293, 18.0686);
+                        }
+                    },
+                    {
+                        enableHighAccuracy: highAccuracy,
+                        maximumAge: 10000,
+                        timeout: highAccuracy ? 5000 : 15000
+                    }
+                );
+            }
+            startWatching(true);
         } else {
             alert("Geolocation is not supported by this browser.");
             initMap(59.3293, 18.0686);
