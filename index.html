@@ -97,6 +97,9 @@
         let targetMarker; // Variable to store the target marker
         let startMarker;  // Marker for click-to-set start position
         let startSetByClick = false; // Track if start was set by clicking the map
+        let routeActive = false; // Track if a route is currently being navigated
+        let routeCoords = []; // Current route coordinates for deviation check
+        const OFF_ROUTE_THRESHOLD_M = 50; // Meters away from route before rerouting
 
         function initMap(lat, lon) {
             // Always track the latest GPS position
@@ -114,22 +117,52 @@
             // Add or update the user location marker:
             if (!userMarker) {
                 userMarker = L.circleMarker([lat, lon], {
-                    radius: 8,  // Size of the circle
-                    color: "#fff",  // Border color white
-                    fillColor: "#007bff",   // Fill color blue
-                    fillOpacity: 1  // Transparency
+                    radius: 8,
+                    color: "#fff",
+                    fillColor: "#007bff",
+                    fillOpacity: 1
                 }).addTo(map).openPopup();
             } else {
                 userMarker.setLatLng([lat, lon]);
             }
 
-            // Move the map as the user moves
+            // Move the map on first update only
             if (firstUpdate) {
                 map.setView([lat, lon], 13);
                 firstUpdate = false;
-            } else {
-                map.panTo([lat, lon]);  // Smoothly move the map view
             }
+
+            // If navigating, check if user deviated from route
+            if (routeActive && targetLatLng && routeCoords.length > 1) {
+                const distToRoute = minDistanceToRoute(L.latLng(lat, lon), routeCoords);
+                if (distToRoute > OFF_ROUTE_THRESHOLD_M) {
+                    console.log("Off route by " + Math.round(distToRoute) + "m — rerouting...");
+                    sendRouteRequest();
+                }
+            }
+        }
+
+        // Calculate minimum distance (meters) from a point to the nearest route segment
+        function minDistanceToRoute(latlng, coords) {
+            let minDist = Infinity;
+            for (let i = 0; i < coords.length - 1; i++) {
+                const dist = distToSegment(latlng, coords[i], coords[i + 1]);
+                if (dist < minDist) minDist = dist;
+            }
+            return minDist;
+        }
+
+        // Distance from point P to line segment AB (in meters)
+        function distToSegment(p, a, b) {
+            const dx = b[0] - a[0];
+            const dy = b[1] - a[1];
+            if (dx === 0 && dy === 0) {
+                return p.distanceTo(L.latLng(a[0], a[1]));
+            }
+            let t = ((p.lat - a[0]) * dx + (p.lng - a[1]) * dy) / (dx * dx + dy * dy);
+            t = Math.max(0, Math.min(1, t));
+            const closest = L.latLng(a[0] + t * dx, a[1] + t * dy);
+            return p.distanceTo(closest);
         }
 
         function setupMap(lat, lon) {
@@ -176,6 +209,11 @@
                     fillColor: "#28a745",
                     fillOpacity: 1
                 }).addTo(map).bindPopup("Start position").openPopup();
+
+                // If a route is active, recalculate from new start immediately
+                if (routeActive && targetLatLng) {
+                    sendRouteRequest();
+                }
             });
         }
 
@@ -243,6 +281,7 @@
             }
             routeBounds = L.latLngBounds([currentLatLng, targetLatLng]);
             sendRouteRequest();
+            routeActive = true;
         });
 
         // Clear route button: remove polyline, target marker, start marker
@@ -263,6 +302,8 @@
             targetLatLng = null;
             routeBounds = null;
             startSetByClick = false;
+            routeActive = false;
+            routeCoords = [];
             // Restore currentLatLng to GPS position
             if (gpsLatLng) {
                 currentLatLng = gpsLatLng;
@@ -289,7 +330,7 @@
 
             // Map the path coordinates
             let pathCoords = data.path.map(p => [p.lat, p.lon]);
-            console.log("Path coordinates:", pathCoords);
+            routeCoords = pathCoords; // Store for deviation check
 
             // Remove the existing polyline if it exists
             if (polyline) {
@@ -302,11 +343,17 @@
 
             // Show estimated travel time
             if (data.travel_time_text) {
-                polyline.bindPopup("Estimated time: " + data.travel_time_text).openPopup();
+                // Open popup at the midpoint of the route
+                const mid = pathCoords[Math.floor(pathCoords.length / 2)];
+                polyline.bindPopup("Beräknad restid: " + data.travel_time_text)
+                    .openPopup(L.latLng(mid[0], mid[1]));
             }
 
-            // Fit the map's view to the polyline
-            map.fitBounds(polyline.getBounds());
+            // Fit map to route only on first route display, then follow user
+            if (!routeActive) {
+                map.fitBounds(polyline.getBounds());
+            }
+            routeActive = true;
         };
 
         // Function to send current and target positions via WebSocket
