@@ -66,10 +66,13 @@
 
     <!-- Control buttons (styled with icons) -->
     <div id="controls">
-        <button class="map-button" id="routeInfoButton">
-            <img src="https://img.icons8.com/ios-filled/50/000000/route.png" alt="Route Info">
+        <button class="map-button" id="routeInfoButton" title="Calculate route">
+            <img src="https://img.icons8.com/ios-filled/50/000000/route.png" alt="Calculate Route">
         </button>
-        <button class="map-button" id="CurrentPosButton">
+        <button class="map-button" id="clearRouteButton" title="Clear route">
+            <img src="https://img.icons8.com/ios-filled/50/000000/delete-sign.png" alt="Clear Route">
+        </button>
+        <button class="map-button" id="CurrentPosButton" title="My position">
             <img src="https://img.icons8.com/ios-filled/50/000000/compass.png" alt="Toggle Position/Route">
         </button>
     </div>
@@ -87,44 +90,25 @@
         let viewingRoute = false;  // Track toggle state for position/route
         let routeBounds;
         let currentLatLng;
+        let gpsLatLng;  // Always stores the latest GPS position
         let targetLatLng;
         let geocoder; // Declare geocoder outside initMap to avoid re-adding it multiple times
         let polyline;
         let targetMarker; // Variable to store the target marker
+        let startMarker;  // Marker for click-to-set start position
+        let startSetByClick = false; // Track if start was set by clicking the map
 
         function initMap(lat, lon) {
-            currentLatLng = L.latLng(lat, lon);
+            // Always track the latest GPS position
+            gpsLatLng = L.latLng(lat, lon);
+
+            // If user manually clicked to set start, don't overwrite currentLatLng
+            if (!startSetByClick) {
+                currentLatLng = L.latLng(lat, lon);
+            }
 
             if (!map) { // Only initialize the map once
-                map = L.map('map').setView([lat, lon], zoomLevel); // location and zoom level
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                }).addTo(map);
-
-                // Add the Leaflet Control Geocoder (Search Box)
-                geocoder = L.Control.geocoder({
-                    defaultMarkGeocode: false
-                }).on('markgeocode', function (e) {
-                    targetLatLng = e.geocode.center;
-                    map.setView(targetLatLng, 13);
-                    console.log("Geocode result:", targetLatLng);  // Log the search result
-
-                    // Remove the previous target marker if it exists
-                    if (targetMarker) {
-                        map.removeLayer(targetMarker);
-                        console.log("Previous target marker removed.");
-                    }
-
-                    // Add marker at search location
-                    targetMarker = L.marker(targetLatLng).addTo(map).bindPopup('' + e.geocode.name).openPopup();
-
-                    // Update routeBounds to include both current position & search result
-                    if (currentLatLng) {
-                        routeBounds = L.latLngBounds([currentLatLng, targetLatLng]);
-                        console.log("Updated routeBounds:", routeBounds);
-                        sendRouteRequest();
-                    }
-                }).addTo(map);
+                setupMap(lat, lon);
             }
 
             // Add or update the user location marker:
@@ -139,7 +123,7 @@
                 userMarker.setLatLng([lat, lon]);
             }
 
-            // 🟢 Move the map as the user moves
+            // Move the map as the user moves
             if (firstUpdate) {
                 map.setView([lat, lon], 13);
                 firstUpdate = false;
@@ -148,6 +132,56 @@
             }
         }
 
+        function setupMap(lat, lon) {
+            map = L.map('map').setView([lat, lon], zoomLevel);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // Add the Leaflet Control Geocoder (Search Box)
+            geocoder = L.Control.geocoder({
+                defaultMarkGeocode: false
+            }).on('markgeocode', function (e) {
+                targetLatLng = e.geocode.center;
+                map.setView(targetLatLng, 13);
+                console.log("Geocode result:", targetLatLng);
+
+                // Remove the previous target marker if it exists
+                if (targetMarker) {
+                    map.removeLayer(targetMarker);
+                }
+
+                // Add marker at search location
+                targetMarker = L.marker(targetLatLng).addTo(map).bindPopup('' + e.geocode.name).openPopup();
+            }).addTo(map);
+
+            // Click on map to set start position
+            map.on('click', function (e) {
+                const lat = e.latlng.lat;
+                const lon = e.latlng.lng;
+                console.log("Map clicked — setting start position:", lat, lon);
+
+                startSetByClick = true;
+                currentLatLng = L.latLng(lat, lon);
+
+                // Remove old start marker
+                if (startMarker) {
+                    map.removeLayer(startMarker);
+                }
+
+                // Add a green start marker
+                startMarker = L.circleMarker([lat, lon], {
+                    radius: 8,
+                    color: "#fff",
+                    fillColor: "#28a745",
+                    fillOpacity: 1
+                }).addTo(map).bindPopup("Start position").openPopup();
+            });
+        }
+
+
+        // Initialize map immediately with default position (Gothenburg)
+        setupMap(57.7089, 11.9746);
 
         // Get user's current position using Geolocation API
         if (navigator.geolocation) {
@@ -172,7 +206,6 @@
                             startWatching(false);
                         } else {
                             console.warn("Geolocation failed:", error.message);
-                            initMap(57.7089, 11.9746); // Default: Gothenburg
                         }
                     },
                     {
@@ -183,32 +216,59 @@
                 );
             }
             startWatching(true);
-        } else {
-            console.warn("Geolocation is not supported by this browser.");
-            initMap(57.7089, 11.9746);
         }
 
-        // Toggle between current position and full route
+        // Compass button: reset to GPS position (clear click-based start)
         document.getElementById('CurrentPosButton').addEventListener('click', function () {
             console.log("Current position button clicked.");
-            if (viewingRoute && routeBounds) {
-                map.fitBounds(routeBounds);  // Fit the map to the route bounds
-            } else if (currentLatLng) {
-                map.setView(currentLatLng, zoomLevel);  // Center on current location
-            } else {
-                alert("Current location not available.");
+            startSetByClick = false; // Allow geolocation to update again
+            if (startMarker) {
+                map.removeLayer(startMarker);
+                startMarker = null;
             }
-            viewingRoute = !viewingRoute;  // Toggle the state
+            if (viewingRoute && routeBounds) {
+                map.fitBounds(routeBounds);
+            } else if (currentLatLng) {
+                map.setView(currentLatLng, zoomLevel);
+            }
+            viewingRoute = !viewingRoute;
         });
 
-        // Route Info button functionality (focus on the route)
+        // Route button: calculate route between start and target
         document.getElementById('routeInfoButton').addEventListener('click', function () {
-            console.log("Route info button clicked.");
-            if (routeBounds) {
-                map.fitBounds(routeBounds);
-            } else {
-                alert("No route available. Please search for a route first.");
+            console.log("Route button clicked.");
+            if (!currentLatLng || !targetLatLng) {
+                alert("Set both a start position (click map) and destination (search) first.");
+                return;
             }
+            routeBounds = L.latLngBounds([currentLatLng, targetLatLng]);
+            sendRouteRequest();
+        });
+
+        // Clear route button: remove polyline, target marker, start marker
+        document.getElementById('clearRouteButton').addEventListener('click', function () {
+            console.log("Clear route button clicked.");
+            if (polyline) {
+                map.removeLayer(polyline);
+                polyline = null;
+            }
+            if (targetMarker) {
+                map.removeLayer(targetMarker);
+                targetMarker = null;
+            }
+            if (startMarker) {
+                map.removeLayer(startMarker);
+                startMarker = null;
+            }
+            targetLatLng = null;
+            routeBounds = null;
+            startSetByClick = false;
+            // Restore currentLatLng to GPS position
+            if (gpsLatLng) {
+                currentLatLng = gpsLatLng;
+            }
+            viewingRoute = false;
+            console.log("Route cleared.");
         });
 
         // WebSocket connection:
