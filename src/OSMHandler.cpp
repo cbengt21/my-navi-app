@@ -107,6 +107,30 @@ namespace osm_handler
             // std::cout << "Highway way found: " << way_count << std::endl;
         }
 
+        // Determine if this way is oneway
+        const char *oneway_tag = way.tags()["oneway"];
+        const char *junction_tag = way.tags()["junction"];
+        bool is_oneway = false;
+        bool is_reversed = false; // oneway=-1 means direction is reversed
+
+        if (oneway_tag)
+        {
+            std::string ow(oneway_tag);
+            if (ow == "yes" || ow == "1" || ow == "true")
+                is_oneway = true;
+            else if (ow == "-1" || ow == "reverse")
+            {
+                is_oneway = true;
+                is_reversed = true;
+            }
+        }
+        // Roundabouts and motorways are implicitly oneway
+        if (junction_tag && std::string(junction_tag) == "roundabout")
+            is_oneway = true;
+        std::string hw(highway);
+        if (hw == "motorway" || hw == "motorway_link")
+            is_oneway = true;
+
         // way_count++;
         const auto &nodes = way.nodes();
         // std::cout << "Size of nodes: " << nodes.size() << std::endl;
@@ -133,7 +157,10 @@ namespace osm_handler
 
                 // Add an edge between the nodes (weighted by travel time)
                 float speed = speed_for_highway(highway);
-                graph.addEdge(nodes[i - 1].ref(), nodes[i].ref(), speed);
+                if (is_reversed)
+                    graph.addEdge(nodes[i].ref(), nodes[i - 1].ref(), speed, is_oneway);
+                else
+                    graph.addEdge(nodes[i - 1].ref(), nodes[i].ref(), speed, is_oneway);
                 // std::cout << "Edge was added between nodes " << nodes[i - 1].ref() << " and " << nodes[i].ref() << std::endl;
             }
         }

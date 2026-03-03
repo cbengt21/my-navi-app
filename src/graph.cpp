@@ -14,7 +14,7 @@ namespace graph
         // Only add the node if it doesn't already exist
         nodes.try_emplace(id, Node{lat, lon});
     }
-    void Graph::addEdge(int64_t u, int64_t v, float speed_kmh)
+    void Graph::addEdge(int64_t u, int64_t v, float speed_kmh, bool oneway)
     {
         auto it_u = nodes.find(u);
         auto it_v = nodes.find(v);
@@ -25,7 +25,10 @@ namespace graph
             constexpr float traffic_factor = 1.25f;
             float time_s = (distance_m / (speed_kmh / 3.6f)) * traffic_factor;
             adjList[u].push_back({v, time_s});
-            adjList[v].push_back({u, time_s});
+            if (!oneway)
+            {
+                adjList[v].push_back({u, time_s});
+            }
         }
     }
 
