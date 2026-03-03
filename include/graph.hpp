@@ -40,7 +40,7 @@ namespace graph
 
         // addNode and addEdge methods to build the graph:
         void addNode(int64_t id, float lat, float lon);
-        void addEdge(int64_t u, int64_t v, float speed_kmh = 50.0f, bool oneway = false);
+        void addEdge(int64_t u, int64_t v, float speed_kmh = 50.0f, bool oneway = false, bool is_ferry = false);
 
         // clear the graph if necessary
         void clearGraph();

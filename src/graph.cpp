@@ -14,16 +14,27 @@ namespace graph
         // Only add the node if it doesn't already exist
         nodes.try_emplace(id, Node{lat, lon});
     }
-    void Graph::addEdge(int64_t u, int64_t v, float speed_kmh, bool oneway)
+    void Graph::addEdge(int64_t u, int64_t v, float speed_kmh, bool oneway, bool is_ferry)
     {
         auto it_u = nodes.find(u);
         auto it_v = nodes.find(v);
         if (it_u != nodes.end() && it_v != nodes.end())
         {
             float distance_m = utils::haversine(it_u->second.lat, it_u->second.lon, it_v->second.lat, it_v->second.lon);
-            // Weight = travel time in seconds, with 1.25x factor for stops/traffic/intersections
-            constexpr float traffic_factor = 1.25f;
-            float time_s = (distance_m / (speed_kmh / 3.6f)) * traffic_factor;
+            float time_s;
+            if (is_ferry)
+            {
+                // Ferry: no traffic factor, but add 30 min waiting penalty per ferry way
+                // The penalty is spread across segments proportionally, but we add
+                // a large fixed cost on the first segment to discourage multiple ferries
+                constexpr float ferry_boarding_penalty_s = 10.0f * 60.0f; // 10 minutes
+                time_s = (distance_m / (speed_kmh / 3.6f)) + ferry_boarding_penalty_s;
+            }
+            else
+            {
+                constexpr float traffic_factor = 1.25f;
+                time_s = (distance_m / (speed_kmh / 3.6f)) * traffic_factor;
+            }
             adjList[u].push_back({v, time_s});
             if (!oneway)
             {
@@ -171,8 +182,16 @@ namespace graph
     {
         auto result = a_star(current, target);
         std::cout << "A* algo completed, path has " << result.path.size() << " nodes" << std::endl;
-        std::cout << "Estimated travel time: " << result.travel_time_seconds << " seconds" << std::endl;
         crow::json::wvalue response;
+
+        if (result.path.empty())
+        {
+            std::cout << "No route found between " << current << " and " << target << std::endl;
+            response["error"] = "No route found";
+            return response;
+        }
+
+        std::cout << "Estimated travel time: " << result.travel_time_seconds << " seconds" << std::endl;
 
         // Add travel time info
         int total_seconds = static_cast<int>(result.travel_time_seconds);

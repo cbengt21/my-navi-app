@@ -319,8 +319,14 @@
         // Receive messages and draw polyline
         ws.onmessage = function (event) {
             let data = JSON.parse(event.data);
-            if (!data.path) {
+            if (data.error) {
+                console.log("Route error:", data.error);
+                alert("Ingen rutt hittades. Startpositionen kanske inte är ansluten till vägnätet.");
+                return;
+            }
+            if (!data.path || data.path.length === 0) {
                 console.log("No path data received.");
+                alert("Ingen rutt hittades.");
                 return;
             }
             console.log("Received route data:", data);

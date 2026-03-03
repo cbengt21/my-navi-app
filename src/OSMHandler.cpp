@@ -39,18 +39,29 @@ namespace osm_handler
             {"unclassified", 40.0f},
             {"service", 20.0f},
             {"road", 50.0f},
+            {"ferry", 30.0f},
         };
         auto it = speed_map.find(highway);
         return (it != speed_map.end()) ? it->second : 50.0f;
     }
 
-    // Pass 1: Collect node IDs referenced by drivable highway ways
+    // Check if a way is a ferry route
+    static bool is_ferry(const osmium::Way &way)
+    {
+        const char *route = way.tags()["route"];
+        return (route && std::string(route) == "ferry");
+    }
+
+    // Pass 1: Collect node IDs referenced by drivable highway ways and ferry routes
     void WayNodeCollector::way(const osmium::Way &way)
     {
+        bool dominated = false;
         const char *highway = way.tags()["highway"];
-        if (!highway)
-            return;
-        if (drivable_types.find(highway) == drivable_types.end())
+        if (highway && drivable_types.find(highway) != drivable_types.end())
+            dominated = true;
+        if (!dominated && is_ferry(way))
+            dominated = true;
+        if (!dominated)
             return;
 
         for (const auto &node_ref : way.nodes())
@@ -92,20 +103,16 @@ namespace osm_handler
 
         static size_t way_count = 0;
         const char *highway = way.tags()["highway"];
-        if (!highway)
-        {
-            return; // Skip non-highway ways
-        }
+        bool is_ferry_route = is_ferry(way);
 
-        if (drivable_types.find(highway) == drivable_types.end())
+        if (!is_ferry_route)
         {
-            return; // Skip non-drivable ways (footpaths, cycleways, steps, etc.)
+            if (!highway)
+                return;
+            if (drivable_types.find(highway) == drivable_types.end())
+                return;
         }
-        else
-        {
-            way_count++;
-            // std::cout << "Highway way found: " << way_count << std::endl;
-        }
+        way_count++;
 
         // Determine if this way is oneway
         const char *oneway_tag = way.tags()["oneway"];
@@ -127,13 +134,17 @@ namespace osm_handler
         // Roundabouts and motorways are implicitly oneway
         if (junction_tag && std::string(junction_tag) == "roundabout")
             is_oneway = true;
-        std::string hw(highway);
-        if (hw == "motorway" || hw == "motorway_link")
-            is_oneway = true;
+        if (highway)
+        {
+            std::string hw(highway);
+            if (hw == "motorway" || hw == "motorway_link")
+                is_oneway = true;
+        }
 
         // way_count++;
         const auto &nodes = way.nodes();
         // std::cout << "Size of nodes: " << nodes.size() << std::endl;
+        bool ferry_penalty_applied = false;
         for (size_t i = 1; i < nodes.size(); i++)
         {
             // Check if the locations are valid (amongst temp_nodes)
@@ -156,11 +167,15 @@ namespace osm_handler
                 // std::cout << "Added nodes to the graph: " << nodes[i - 1].ref() << " and " << nodes[i].ref() << std::endl;
 
                 // Add an edge between the nodes (weighted by travel time)
-                float speed = speed_for_highway(highway);
+                float speed = is_ferry_route ? speed_for_highway("ferry") : speed_for_highway(highway);
+                // Only apply ferry boarding penalty on the first segment of a ferry way
+                bool apply_ferry_penalty = is_ferry_route && !ferry_penalty_applied;
                 if (is_reversed)
-                    graph.addEdge(nodes[i].ref(), nodes[i - 1].ref(), speed, is_oneway);
+                    graph.addEdge(nodes[i].ref(), nodes[i - 1].ref(), speed, is_oneway, apply_ferry_penalty);
                 else
-                    graph.addEdge(nodes[i - 1].ref(), nodes[i].ref(), speed, is_oneway);
+                    graph.addEdge(nodes[i - 1].ref(), nodes[i].ref(), speed, is_oneway, apply_ferry_penalty);
+                if (apply_ferry_penalty)
+                    ferry_penalty_applied = true;
                 // std::cout << "Edge was added between nodes " << nodes[i - 1].ref() << " and " << nodes[i].ref() << std::endl;
             }
         }
