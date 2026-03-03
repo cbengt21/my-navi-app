@@ -18,6 +18,12 @@ namespace graph
         float weight;
     };
 
+    struct RouteResult
+    {
+        std::vector<int64_t> path;
+        float travel_time_seconds = 0.0f;
+    };
+
     // Graph class, with Dijkstra's algorithm and WebSocket server
     class Graph
     {
@@ -34,7 +40,7 @@ namespace graph
 
         // addNode and addEdge methods to build the graph:
         void addNode(int64_t id, float lat, float lon);
-        void addEdge(int64_t u, int64_t v);
+        void addEdge(int64_t u, int64_t v, float speed_kmh = 50.0f);
 
         // clear the graph if necessary
         void clearGraph();
@@ -43,7 +49,7 @@ namespace graph
         std::vector<int64_t> dijkstra(int64_t current, int64_t target);
 
         // A* algorithm:
-        std::vector<int64_t> a_star(int64_t start, int64_t target);
+        RouteResult a_star(int64_t start, int64_t target);
 
         crow::json::wvalue getPathAsJSON(int64_t current, int64_t target);
 

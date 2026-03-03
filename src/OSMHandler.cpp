@@ -18,6 +18,32 @@ namespace osm_handler
         "unclassified", "service",
         "road"};
 
+    // Speed limits (km/h) per highway type
+    // A uniform penalty factor is applied in addEdge to account for
+    // intersections, traffic lights, acceleration/braking, etc.
+    static float speed_for_highway(const char *highway)
+    {
+        static const std::unordered_map<std::string, float> speed_map = {
+            {"motorway", 110.0f},
+            {"motorway_link", 80.0f},
+            {"trunk", 90.0f},
+            {"trunk_link", 70.0f},
+            {"primary", 80.0f},
+            {"primary_link", 60.0f},
+            {"secondary", 70.0f},
+            {"secondary_link", 50.0f},
+            {"tertiary", 60.0f},
+            {"tertiary_link", 40.0f},
+            {"residential", 30.0f},
+            {"living_street", 20.0f},
+            {"unclassified", 40.0f},
+            {"service", 20.0f},
+            {"road", 50.0f},
+        };
+        auto it = speed_map.find(highway);
+        return (it != speed_map.end()) ? it->second : 50.0f;
+    }
+
     // Pass 1: Collect node IDs referenced by drivable highway ways
     void WayNodeCollector::way(const osmium::Way &way)
     {
@@ -105,8 +131,9 @@ namespace osm_handler
                 graph.addNode(nodes[i].ref(), it_node2->second.first, it_node2->second.second);
                 // std::cout << "Added nodes to the graph: " << nodes[i - 1].ref() << " and " << nodes[i].ref() << std::endl;
 
-                // Add an edge between the nodes
-                graph.addEdge(nodes[i - 1].ref(), nodes[i].ref());
+                // Add an edge between the nodes (weighted by travel time)
+                float speed = speed_for_highway(highway);
+                graph.addEdge(nodes[i - 1].ref(), nodes[i].ref(), speed);
                 // std::cout << "Edge was added between nodes " << nodes[i - 1].ref() << " and " << nodes[i].ref() << std::endl;
             }
         }

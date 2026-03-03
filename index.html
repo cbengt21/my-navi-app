@@ -299,7 +299,11 @@
 
             // Add the polyline to the map
             polyline = L.polyline(pathCoords, { color: 'blue' }).addTo(map);
-            console.log("Polyline added to map:", polyline);
+
+            // Show estimated travel time
+            if (data.travel_time_text) {
+                polyline.bindPopup("Estimated time: " + data.travel_time_text).openPopup();
+            }
 
             // Fit the map's view to the polyline
             map.fitBounds(polyline.getBounds());

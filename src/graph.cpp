@@ -14,15 +14,18 @@ namespace graph
         // Only add the node if it doesn't already exist
         nodes.try_emplace(id, Node{lat, lon});
     }
-    void Graph::addEdge(int64_t u, int64_t v)
+    void Graph::addEdge(int64_t u, int64_t v, float speed_kmh)
     {
         auto it_u = nodes.find(u);
         auto it_v = nodes.find(v);
         if (it_u != nodes.end() && it_v != nodes.end())
         {
-            float distance = utils::haversine(it_u->second.lat, it_u->second.lon, it_v->second.lat, it_v->second.lon);
-            adjList[u].push_back({v, distance});
-            adjList[v].push_back({u, distance});
+            float distance_m = utils::haversine(it_u->second.lat, it_u->second.lon, it_v->second.lat, it_v->second.lon);
+            // Weight = travel time in seconds, with 1.25x factor for stops/traffic/intersections
+            constexpr float traffic_factor = 1.25f;
+            float time_s = (distance_m / (speed_kmh / 3.6f)) * traffic_factor;
+            adjList[u].push_back({v, time_s});
+            adjList[v].push_back({u, time_s});
         }
     }
 
@@ -86,7 +89,7 @@ namespace graph
     }
 
     // A* algorithm:
-    std::vector<int64_t> Graph::a_star(int64_t start, int64_t target)
+    RouteResult Graph::a_star(int64_t start, int64_t target)
     {
         std::cout << "Running A* algo" << std::endl;
 
@@ -97,7 +100,9 @@ namespace graph
         auto heuristic = [&, target_lat, target_lon](int64_t from)
         {
             const auto &n = nodes[from];
-            return utils::haversine(n.lat, n.lon, target_lat, target_lon);
+            // Heuristic: travel time assuming max speed (110 km/h) — admissible lower bound
+            float distance_m = utils::haversine(n.lat, n.lon, target_lat, target_lon);
+            return distance_m / (110.0f / 3.6f); // seconds (no traffic factor — must be admissible)
         };
 
         using PQEntry = std::pair<float, int64_t>; // (f_score, node)
@@ -145,6 +150,8 @@ namespace graph
         if (it == g_score.end())
             return {}; // No path found
 
+        float total_time = it->second;
+
         // Reconstruct path:
         std::vector<int64_t> path;
         for (int64_t at = target; at != start; at = previous[at])
@@ -154,26 +161,35 @@ namespace graph
 
         path.push_back(start);
         std::reverse(path.begin(), path.end());
-        return path;
+        return {path, total_time};
     }
 
     crow::json::wvalue Graph::getPathAsJSON(int64_t current, int64_t target)
     {
-        auto path = a_star(current, target);
-        std::cout << "A* algo completed, path has " << path.size() << " nodes" << std::endl;
+        auto result = a_star(current, target);
+        std::cout << "A* algo completed, path has " << result.path.size() << " nodes" << std::endl;
+        std::cout << "Estimated travel time: " << result.travel_time_seconds << " seconds" << std::endl;
         crow::json::wvalue response;
-        for (size_t i = 0; i < path.size(); i++)
+
+        // Add travel time info
+        int total_seconds = static_cast<int>(result.travel_time_seconds);
+        int hours = total_seconds / 3600;
+        int minutes = (total_seconds % 3600) / 60;
+        response["travel_time_seconds"] = result.travel_time_seconds;
+        response["travel_time_text"] = (hours > 0 ? std::to_string(hours) + " h " : "") + std::to_string(minutes) + " min";
+
+        for (size_t i = 0; i < result.path.size(); i++)
         {
-            auto it = nodes.find(path[i]);
+            auto it = nodes.find(result.path[i]);
             if (it != nodes.end())
             {
-                response["path"][i]["id"] = path[i];
+                response["path"][i]["id"] = result.path[i];
                 response["path"][i]["lat"] = it->second.lat;
                 response["path"][i]["lon"] = it->second.lon;
             }
             else
             {
-                std::cerr << "Error: Node " << path[i] << " is null or not found" << std::endl;
+                std::cerr << "Error: Node " << result.path[i] << " is null or not found" << std::endl;
             }
         }
         std::cout << "Path JSON generated" << std::endl;
