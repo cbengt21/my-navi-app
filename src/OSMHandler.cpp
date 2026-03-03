@@ -7,6 +7,32 @@
 
 namespace osm_handler
 {
+    // Static drivable types used by both WayNodeCollector and OSMHandler
+    static const std::unordered_set<std::string> drivable_types = {
+        "motorway", "motorway_link",
+        "trunk", "trunk_link",
+        "primary", "primary_link",
+        "secondary", "secondary_link",
+        "tertiary", "tertiary_link",
+        "residential", "living_street",
+        "unclassified", "service",
+        "road"};
+
+    // Pass 1: Collect node IDs referenced by drivable highway ways
+    void WayNodeCollector::way(const osmium::Way &way)
+    {
+        const char *highway = way.tags()["highway"];
+        if (!highway)
+            return;
+        if (drivable_types.find(highway) == drivable_types.end())
+            return;
+
+        for (const auto &node_ref : way.nodes())
+        {
+            needed_nodes.insert(node_ref.ref());
+        }
+    }
+
     void OSMHandler::printBoundingBox() const
     {
         std::cout << "Bounding box: ("
@@ -16,29 +42,10 @@ namespace osm_handler
 
     void OSMHandler::node(const osmium::Node &node)
     {
-        static bool printed = false;
-        if (!printed)
+        // Only store nodes that are referenced by drivable highways AND within the bounding box
+        if (needed_nodes.count(node.id()) && bbox.contains(node.location()))
         {
-            std::cout << "Node started" << std::endl;
-            // printBoundingBox();
-            printed = true;
-        }
-
-        // Check if the node location is within the bounding box
-        if (bbox.contains(node.location()))
-        {
-            // Temporarily store the node location
-            // temp_nodes[node.id()] = {node.location().lat(), node.location().lon()};
             temp_nodes[node.id()] = {node.location().lat(), node.location().lon()};
-            // std::cout << "Added node to temp_nodes: " << node.id() << " (" << node.location().lat() << ", " << node.location().lon() << ")" << std::endl;
-        }
-        else
-        {
-            if (node.location().lat() < 58 && node.location().lat() > 57 && node.location().lon() < 13 && node.location().lon() > 12)
-            {
-                std::cout << "Node " << node.id() << " should be added but is not" << std::endl;
-            }
-            // std::cout << "Node " << node.id() << " is outside the bounding box" << std::endl;
         }
     }
 
@@ -63,18 +70,6 @@ namespace osm_handler
         {
             return; // Skip non-highway ways
         }
-
-        // Only include drivable road types
-        static const std::unordered_set<std::string> drivable_types = {
-            "motorway", "motorway_link",
-            "trunk", "trunk_link",
-            "primary", "primary_link",
-            "secondary", "secondary_link",
-            "tertiary", "tertiary_link",
-            "residential", "living_street",
-            "unclassified", "service",
-            "road"
-        };
 
         if (drivable_types.find(highway) == drivable_types.end())
         {

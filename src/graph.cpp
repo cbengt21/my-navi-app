@@ -4,6 +4,7 @@
 
 #include <queue>
 #include <unordered_set>
+#include <fstream>
 #include <nlohmann/json.hpp>
 
 namespace graph
@@ -11,17 +12,15 @@ namespace graph
     void Graph::addNode(int64_t id, float lat, float lon)
     {
         // Only add the node if it doesn't already exist
-        if (nodes.find(id) == nodes.end())
-        {
-            nodes[id] = std::make_shared<Node>(Node{lat, lon});
-            // std::cout << "Node added: " << id << " (" << lat << ", " << lon << ")" << std::endl;
-        }
+        nodes.try_emplace(id, Node{lat, lon});
     }
     void Graph::addEdge(int64_t u, int64_t v)
     {
-        if (nodes.count(u) && nodes.count(v))
+        auto it_u = nodes.find(u);
+        auto it_v = nodes.find(v);
+        if (it_u != nodes.end() && it_v != nodes.end())
         {
-            float distance = utils::haversine(nodes[u]->lat, nodes[u]->lon, nodes[v]->lat, nodes[v]->lon);
+            float distance = utils::haversine(it_u->second.lat, it_u->second.lon, it_v->second.lat, it_v->second.lon);
             adjList[u].push_back({v, distance});
             adjList[v].push_back({u, distance});
         }
@@ -73,9 +72,9 @@ namespace graph
         std::vector<int64_t> path;
         for (int64_t at = target; at != current; at = previous[at])
         {
-            if (nodes.find(at) == nodes.end() || nodes[at] == nullptr)
+            if (nodes.find(at) == nodes.end())
             {
-                std::cerr << "Error: Node " << at << "is null or not found" << std::endl;
+                std::cerr << "Error: Node " << at << " is not found" << std::endl;
                 return {};
             }
             path.push_back(at);
@@ -92,13 +91,13 @@ namespace graph
         std::cout << "Running A* algo" << std::endl;
 
         // Cache target node coordinates to avoid repeated map lookups
-        const float target_lat = nodes[target]->lat;
-        const float target_lon = nodes[target]->lon;
+        const float target_lat = nodes[target].lat;
+        const float target_lon = nodes[target].lon;
 
         auto heuristic = [&, target_lat, target_lon](int64_t from)
         {
             const auto &n = nodes[from];
-            return utils::haversine(n->lat, n->lon, target_lat, target_lon);
+            return utils::haversine(n.lat, n.lon, target_lat, target_lon);
         };
 
         using PQEntry = std::pair<float, int64_t>; // (f_score, node)
@@ -106,7 +105,7 @@ namespace graph
 
         std::unordered_map<int64_t, float> g_score;    // Distance from start (lazy: missing = INFINITY)
         std::unordered_map<int64_t, int64_t> previous; // Path reconstruction
-        std::unordered_set<int64_t> visited;            // Skip already-settled nodes
+        std::unordered_set<int64_t> visited;           // Skip already-settled nodes
 
         g_score[start] = 0;
         pq.push({heuristic(start), start});
@@ -165,12 +164,12 @@ namespace graph
         crow::json::wvalue response;
         for (size_t i = 0; i < path.size(); i++)
         {
-            const auto &node = nodes[path[i]];
-            if (node != nullptr)
+            auto it = nodes.find(path[i]);
+            if (it != nodes.end())
             {
                 response["path"][i]["id"] = path[i];
-                response["path"][i]["lat"] = node->lat;
-                response["path"][i]["lon"] = node->lon;
+                response["path"][i]["lat"] = it->second.lat;
+                response["path"][i]["lon"] = it->second.lon;
             }
             else
             {
@@ -227,7 +226,27 @@ namespace graph
             .onclose([](crow::websocket::connection &conn, const std::string &reason, uint16_t code)
                      { std::cout << "WebSocket closed. Reason: " << reason << ", Code: " << code << std::endl; });
 
-        std::cout << "Server running on ws://localhost:18080/ws" << std::endl;
+        // Serve index.html at the root URL
+        CROW_ROUTE(app, "/")
+        ([]()
+         {
+            // Try multiple paths to find index.html regardless of working directory
+            for (const auto &path : {"../index.html", "index.html", "../../index.html"})
+            {
+                std::ifstream f(path);
+                if (f.good())
+                {
+                    std::string content((std::istreambuf_iterator<char>(f)),
+                                         std::istreambuf_iterator<char>());
+                    crow::response res(200);
+                    res.set_header("Content-Type", "text/html; charset=utf-8");
+                    res.body = content;
+                    return res;
+                }
+            }
+            return crow::response(404, "index.html not found"); });
+
+        std::cout << "Server running on http://localhost:18080" << std::endl;
         app.port(18080).multithreaded().run();
     }
 
@@ -238,15 +257,11 @@ namespace graph
 
         for (const auto &[id, node] : nodes)
         {
-            if (node) // Ensure node is not null
+            float distance = utils::haversine(lat, lon, node.lat, node.lon);
+            if (distance < min_distance)
             {
-                float distance = utils::haversine(lat, lon, node->lat, node->lon);
-                // std::cout << "Node " << id << ": distance = " << distance << std::endl;
-                if (distance < min_distance)
-                {
-                    min_distance = distance;
-                    nearest_node = id;
-                }
+                min_distance = distance;
+                nearest_node = id;
             }
         }
 
@@ -254,12 +269,13 @@ namespace graph
         {
             std::cerr << "Error: Nearest node not found for coordinates (" << lat << ", " << lon << ")" << std::endl;
         }
-        else if (nodes[nearest_node])
+        else
         {
+            const auto &n = nodes[nearest_node];
             std::cout << "Nearest node: " << nearest_node << " with distance " << min_distance << std::endl;
             std::cout << "Nearest node coordinates: lat = "
-                      << std::fixed << std::setprecision(8) << nodes[nearest_node]->lat
-                      << ", lon = " << nodes[nearest_node]->lon << std::endl;
+                      << std::fixed << std::setprecision(8) << n.lat
+                      << ", lon = " << n.lon << std::endl;
         }
 
         return nearest_node;

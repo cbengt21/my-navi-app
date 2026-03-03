@@ -151,9 +151,15 @@
 
         // Get user's current position using Geolocation API
         if (navigator.geolocation) {
-            // Try high accuracy first, fall back to low accuracy on failure
+            let watchId = null;
+
             function startWatching(highAccuracy) {
-                navigator.geolocation.watchPosition(
+                // Clear any previous watcher
+                if (watchId !== null) {
+                    navigator.geolocation.clearWatch(watchId);
+                }
+
+                watchId = navigator.geolocation.watchPosition(
                     function (position) {
                         const lat = position.coords.latitude;
                         const lon = position.coords.longitude;
@@ -165,21 +171,21 @@
                             console.warn("High accuracy failed, falling back to low accuracy:", error.message);
                             startWatching(false);
                         } else {
-                            alert("Failed to retrieve location: " + error.message);
-                            initMap(59.3293, 18.0686);
+                            console.warn("Geolocation failed:", error.message);
+                            initMap(57.7089, 11.9746); // Default: Gothenburg
                         }
                     },
                     {
                         enableHighAccuracy: highAccuracy,
-                        maximumAge: 10000,
+                        maximumAge: 5000,
                         timeout: highAccuracy ? 5000 : 15000
                     }
                 );
             }
             startWatching(true);
         } else {
-            alert("Geolocation is not supported by this browser.");
-            initMap(59.3293, 18.0686);
+            console.warn("Geolocation is not supported by this browser.");
+            initMap(57.7089, 11.9746);
         }
 
         // Toggle between current position and full route

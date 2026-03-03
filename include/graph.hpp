@@ -22,9 +22,9 @@ namespace graph
     class Graph
     {
     private:
-        std::unordered_map<int64_t, std::vector<Edge>> adjList;   // Adjacency list
-        crow::SimpleApp app;                                      // Store the Crow app instance
-        std::unordered_map<int64_t, std::shared_ptr<Node>> nodes; // Node ID -> (lat, lon)
+        std::unordered_map<int64_t, std::vector<Edge>> adjList; // Adjacency list
+        crow::SimpleApp app;                                    // Store the Crow app instance
+        std::unordered_map<int64_t, Node> nodes;                // Node ID -> (lat, lon)
 
     public:
         void printNrOfNodes()
