@@ -53,7 +53,7 @@ namespace graph
     private:
         std::unordered_map<int64_t, std::vector<Edge>> adjList;
         std::unordered_map<int64_t, std::vector<Edge>> reverseAdj; // Reverse adjacency (for bidirectional A* and reachability)
-        std::unordered_map<int64_t, uint16_t> incoming_count; // Number of incoming edges per node
+        std::unordered_map<int64_t, uint16_t> incoming_count;      // Number of incoming edges per node
         crow::SimpleApp app;
         std::unordered_map<int64_t, Node> nodes;
         std::string osm_file_path;
@@ -63,18 +63,22 @@ namespace graph
 
         // Spatial grid for fast nearest-node lookup
         static constexpr float GRID_CELL_SIZE = 0.01f; // ~1km cells
-        struct GridKey {
+        struct GridKey
+        {
             int lat_idx, lon_idx;
             bool operator==(const GridKey &o) const { return lat_idx == o.lat_idx && lon_idx == o.lon_idx; }
         };
-        struct GridKeyHash {
-            size_t operator()(const GridKey &k) const {
+        struct GridKeyHash
+        {
+            size_t operator()(const GridKey &k) const
+            {
                 return std::hash<int64_t>()(((int64_t)k.lat_idx << 32) | (uint32_t)k.lon_idx);
             }
         };
         std::unordered_map<GridKey, std::vector<int64_t>, GridKeyHash> spatial_grid;
 
-        GridKey toGridKey(float lat, float lon) const {
+        GridKey toGridKey(float lat, float lon) const
+        {
             return {(int)std::floor(lat / GRID_CELL_SIZE), (int)std::floor(lon / GRID_CELL_SIZE)};
         }
         void buildSpatialGrid();
