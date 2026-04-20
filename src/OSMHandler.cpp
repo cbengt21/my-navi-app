@@ -16,7 +16,7 @@ namespace osm_handler
         "tertiary", "tertiary_link",
         "residential", "living_street",
         "unclassified", "service",
-        "road"};
+        "road", "construction", "track"};
 
     // Speed limits (km/h) per highway type
     // A uniform penalty factor is applied in addEdge to account for
@@ -39,6 +39,8 @@ namespace osm_handler
             {"unclassified", 40.0f},
             {"service", 20.0f},
             {"road", 50.0f},
+            {"construction", 30.0f},
+            {"track", 20.0f},
             {"ferry", 30.0f},
         };
         auto it = speed_map.find(highway);

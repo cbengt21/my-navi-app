@@ -10,33 +10,16 @@ int main()
     try
     {
         std::string file_path = "../../sweden-latest.osm.pbf";
-        std::cout << "Attempting to open file: " << file_path << std::endl;
+        std::cout << "OSM file: " << file_path << std::endl;
 
-        // Define the user's location (example coordinates), Alexanderplatz, Berlin:
-        // float user_lon = 13.413215;
-        // float user_lat = 52.521919;
-        // Define the user's location (example coordinates), kungsbacka, Sweden:
-        // constexpr float user_lon = 12.0061952;
-        // constexpr float user_lat = 57.6847872;
+        // Set the source OSM file path
+        g.setFilePath(file_path);
 
-        // Define the tile size (1x1 degree)
-        // constexpr float tile_size = 3.0;
+        // Load data at startup for fast searches and route calculations.
+        // 6 GB is treated as a target (monitoring), not a hard cap.
+        g.preloadDataForFastRouting(6.0f);
 
-        // Calculate the bounding box for the tile containing the user's location
-        /*constexpr float min_lat = user_lat - tile_size / 2.0;
-        constexpr float max_lat = user_lat + tile_size / 2.0;
-        constexpr float min_lon = user_lon - tile_size / 2.0;
-        constexpr float max_lon = user_lon + tile_size / 2.0;*/
-
-        // Use the whole map:
-        constexpr float min_lat = -90.0;
-        constexpr float max_lat = 90.0;
-        constexpr float min_lon = -180.0;
-        constexpr float max_lon = 180.0;
-
-        // Load and process the tile
-        utils::loadTile(g, min_lon, min_lat, max_lon, max_lat, file_path);
-        std::cout << "Tile loaded successfully!" << std::endl;
+        std::cout << "Server starting (graph preloaded at startup)..." << std::endl;
 
         // Start the WebSocket server
         g.startServer();

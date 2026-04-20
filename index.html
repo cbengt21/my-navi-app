@@ -99,7 +99,10 @@
         let startSetByClick = false; // Track if start was set by clicking the map
         let routeActive = false; // Track if a route is currently being navigated
         let routeCoords = []; // Current route coordinates for deviation check
-        const OFF_ROUTE_THRESHOLD_M = 50; // Meters away from route before rerouting
+        let routeJustDrawn = false; // Suppress reroute right after drawing
+        let preloadReady = true; // Track if preload is done
+        let routePending = false; // True if user clicked route while preload was in progress
+        const OFF_ROUTE_THRESHOLD_M = 100; // Meters away from route before rerouting
 
         function initMap(lat, lon) {
             // Always track the latest GPS position
@@ -133,7 +136,7 @@
             }
 
             // If navigating, check if user deviated from route
-            if (routeActive && targetLatLng && routeCoords.length > 1) {
+            if (routeActive && !routeJustDrawn && targetLatLng && routeCoords.length > 1) {
                 const distToRoute = minDistanceToRoute(L.latLng(lat, lon), routeCoords);
                 if (distToRoute > OFF_ROUTE_THRESHOLD_M) {
                     console.log("Off route by " + Math.round(distToRoute) + "m — rerouting...");
@@ -186,6 +189,19 @@
 
                 // Add marker at search location
                 targetMarker = L.marker(targetLatLng).addTo(map).bindPopup('' + e.geocode.name).openPopup();
+
+                // Preload map data for the area between current position and target
+                if (currentLatLng && ws && ws.readyState === WebSocket.OPEN) {
+                    preloadReady = false;
+                    document.getElementById('routeInfoButton').style.opacity = '0.3';
+                    const msg = {
+                        type: "preload",
+                        start: { lat: currentLatLng.lat, lon: currentLatLng.lng },
+                        end: { lat: targetLatLng.lat, lon: targetLatLng.lng }
+                    };
+                    ws.send(JSON.stringify(msg));
+                    console.log("Sent preload request for area");
+                }
             }).addTo(map);
 
             // Click on map to set start position
@@ -274,9 +290,20 @@
 
         // Route button: calculate route between start and target
         document.getElementById('routeInfoButton').addEventListener('click', function () {
-            console.log("Route button clicked.");
-            if (!currentLatLng || !targetLatLng) {
-                alert("Set both a start position (click map) and destination (search) first.");
+            console.log("Route button clicked. preloadReady=", preloadReady);
+            if (!preloadReady) {
+                console.log("Map data still loading — route will be sent when ready.");
+                routePending = true;
+                return;
+            }
+            // Use map center as fallback if no GPS/click position
+            if (!currentLatLng) {
+                const center = map.getCenter();
+                currentLatLng = L.latLng(center.lat, center.lng);
+                console.log("No start position — using map center as start:", currentLatLng);
+            }
+            if (!targetLatLng) {
+                alert("Sök efter en destination först.");
                 return;
             }
             routeBounds = L.latLngBounds([currentLatLng, targetLatLng]);
@@ -319,6 +346,27 @@
         // Receive messages and draw polyline
         ws.onmessage = function (event) {
             let data = JSON.parse(event.data);
+            // Handle preload completion
+            if (data.preload_done) {
+                console.log("Preload complete — map data ready.");
+                preloadReady = true;
+                document.getElementById('routeInfoButton').style.opacity = '1.0';
+                // If user clicked route while loading, send it now
+                if (routePending) {
+                    console.log("Sending queued route request...");
+                    routePending = false;
+                    if (!currentLatLng) {
+                        const center = map.getCenter();
+                        currentLatLng = L.latLng(center.lat, center.lng);
+                    }
+                    if (targetLatLng) {
+                        routeBounds = L.latLngBounds([currentLatLng, targetLatLng]);
+                        sendRouteRequest();
+                        routeActive = true;
+                    }
+                }
+                return;
+            }
             if (data.error) {
                 console.log("Route error:", data.error);
                 alert("Ingen rutt hittades. Startpositionen kanske inte är ansluten till vägnätet.");
@@ -355,11 +403,13 @@
                     .openPopup(L.latLng(mid[0], mid[1]));
             }
 
-            // Fit map to route only on first route display, then follow user
-            if (!routeActive) {
-                map.fitBounds(polyline.getBounds());
-            }
+            // Fit map to show full route
+            map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
             routeActive = true;
+
+            // Suppress rerouting for 5 seconds after a route is drawn
+            routeJustDrawn = true;
+            setTimeout(() => { routeJustDrawn = false; }, 5000);
         };
 
         // Function to send current and target positions via WebSocket

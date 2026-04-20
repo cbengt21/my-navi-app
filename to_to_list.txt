@@ -10,9 +10,10 @@
  - A* search           Use heuristic to cut graph   ~10x speedup                                -> Done
  - KD-tree / R-tree    Fast nearest node 	        ~1000x faster
  - Use -O3	            Compiler optimization	    2–5x speedup                                -> Done
-10. recalculate route when position changes
+10. recalculate route when position changes                                                     -> Done
 11. Make them run together over internet with Raspberry PI 5.
 12. pull from github to raspberry pi 5 on push to github. Build and run automatically.
+13. use threads to speed things up?
 
 
 
