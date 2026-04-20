@@ -1231,12 +1231,12 @@ namespace graph
             }
             return crow::response(404, "index.html not found"); });
 
-        // Serve test-route-movement.html
-        CROW_ROUTE(app, "/test-route-movement.html")
+        // Serve test-dynamic-route.html
+        CROW_ROUTE(app, "/test-dynamic-route.html")
         ([]()
          {
-            // Try multiple paths to find test-route-movement.html
-            for (const auto &path : {"../test-route-movement.html", "test-route-movement.html", "../../test-route-movement.html"})
+            // Try multiple paths to find test-dynamic-route.html
+            for (const auto &path : {"../test-dynamic-route.html", "test-dynamic-route.html", "../../test-dynamic-route.html"})
             {
                 std::ifstream f(path);
                 if (f.good())
@@ -1249,7 +1249,7 @@ namespace graph
                     return res;
                 }
             }
-            return crow::response(404, "test-route-movement.html not found"); });
+            return crow::response(404, "test-dynamic-route.html not found"); });
 
         std::cout << "Server running on http://localhost:18080" << std::endl;
         app.port(18080).multithreaded().run();

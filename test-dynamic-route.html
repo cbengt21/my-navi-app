@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="sv">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Route Movement Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            gap: 20px;
+            height: calc(100vh - 60px);
+        }
+
+        #appFrame {
+            flex: 1;
+            border: 2px solid #007bff;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .control-panel {
+            width: 300px;
+            background: white;
+            border-radius: 4px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .control-section {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+
+        .control-section:last-child {
+            border-bottom: none;
+        }
+
+        h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+            width: 100%;
+        }
+
+        button:hover:not(:disabled) {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        button.danger {
+            background: #dc3545;
+        }
+
+        button.danger:hover:not(:disabled) {
+            background: #c82333;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            border: 1px solid #ddd;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border-color: #ffeeba;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-color: #bee5eb;
+        }
+
+        #log {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.4;
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .log-line {
+            margin: 2px 0;
+            padding: 2px 4px;
+        }
+
+        .log-line.info {
+            color: #0066cc;
+        }
+
+        .log-line.success {
+            color: #28a745;
+        }
+
+        .log-line.error {
+            color: #dc3545;
+        }
+
+        .log-line.warning {
+            color: #ff9800;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <iframe id="appFrame" src="/?testMode=true"></iframe>
+
+        <div class="control-panel">
+            <div class="control-section">
+                <h3>Test Controls</h3>
+                <button id="calcRouteBtn" onclick="calculateRoute()">Calculate Route</button>
+                <button id="simulateBtn" onclick="simulateMovement()" disabled>Simulate Movement</button>
+                <button id="deviateBtn" onclick="simulateDeviation()" disabled class="danger">Deviate +150m</button>
+                <button id="resetBtn" onclick="reset()">Reset</button>
+            </div>
+
+            <div class="control-section">
+                <h3>Status</h3>
+                <div id="status" class="status info">Ready</div>
+            </div>
+
+            <div class="control-section">
+                <h3>Log</h3>
+                <div id="log"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const appFrame = document.getElementById('appFrame');
+        let appWindow = null;
+        let appReady = false;
+        let currentRoute = null;
+        let currentPositionIndex = 0;
+
+        const WS_URL = 'ws://localhost:18080/ws';
+        let ws = null;
+
+        function log(msg, type = 'info') {
+            const logEl = document.getElementById('log');
+            const line = document.createElement('div');
+            line.className = `log-line ${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logEl.appendChild(line);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function updateStatus(msg, type = 'info') {
+            const el = document.getElementById('status');
+            el.textContent = msg;
+            el.className = `status ${type}`;
+            log(msg, type);
+        }
+
+        function connectWebSocket() {
+            return new Promise((resolve, reject) => {
+                ws = new WebSocket(WS_URL);
+                ws.onopen = () => {
+                    log('WebSocket connected', 'success');
+                    resolve();
+                };
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.preload_done) {
+                            log('Preload complete', 'success');
+                        } else if (Array.isArray(data.path) && data.path.length > 0) {
+                            currentRoute = data;
+                            onRouteReceived(data);
+                        } else if (data.error) {
+                            log(`Error: ${data.error}`, 'error');
+                        }
+                    } catch (err) {
+                        log(`JSON parse error: ${err.message}`, 'error');
+                    }
+                };
+                ws.onerror = (err) => {
+                    log(`WebSocket error: ${err}`, 'error');
+                    reject(err);
+                };
+            });
+        }
+
+        function onRouteReceived(data) {
+            log(`Route received: ${data.path.length} nodes, travel time: ${data.travel_time_text}`, 'success');
+
+            // Inject the route into the iframe app to display the blue line
+            if (appWindow && appWindow.injectRoute) {
+                try {
+                    appWindow.injectRoute(data);
+                    log('Route injected into iframe app', 'success');
+                } catch (err) {
+                    log(`Error injecting route: ${err.message}`, 'error');
+                }
+            }
+
+            document.getElementById('simulateBtn').disabled = false;
+            document.getElementById('deviateBtn').disabled = false;
+            currentPositionIndex = 0;
+        }
+
+        async function calculateRoute() {
+            if (!appWindow || !appReady) {
+                updateStatus('App not ready', 'warning');
+                return;
+            }
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                await connectWebSocket();
+            }
+
+            updateStatus('Calculating route...', 'info');
+
+            // Preload
+            ws.send(JSON.stringify({
+                type: 'preload',
+                start: { lat: 57.7089, lon: 11.9746 },
+                end: { lat: 57.7000, lon: 11.9500 }
+            }));
+
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // Request route
+            ws.send(JSON.stringify({
+                type: 'route_request',
+                start: { lat: 57.7089, lon: 11.9746 },
+                end: { lat: 57.7000, lon: 11.9500 }
+            }));
+        }
+
+        async function simulateMovement() {
+            if (!currentRoute || !appWindow) {
+                updateStatus('No route or app not ready', 'warning');
+                return;
+            }
+
+            updateStatus('Simulating movement...', 'info');
+
+            const pathCoords = currentRoute.path.map(p => [p.lat, p.lon]);
+            const step = Math.max(1, Math.floor(pathCoords.length / 10)); // 10 steps
+
+            for (let i = 0; i < pathCoords.length; i += step) {
+                const [lat, lon] = pathCoords[i];
+
+                // Inject position into iframe-app
+                appWindow.injectTestPosition(lat, lon);
+
+                log(`Position ${i + 1}/${pathCoords.length}: [${lat.toFixed(6)}, ${lon.toFixed(6)}]`, 'info');
+
+                // Wait for visual update
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            updateStatus('Movement simulation complete - blue line should be trimmed!', 'success');
+        }
+
+        async function simulateDeviation() {
+            if (!currentRoute || !appWindow) {
+                updateStatus('No route or app not ready', 'warning');
+                return;
+            }
+
+            const pathCoords = currentRoute.path.map(p => [p.lat, p.lon]);
+            const firstPoint = pathCoords[0];
+            const secondPoint = pathCoords[1];
+
+            // Simple perpendicular offset (approximate)
+            const latDiff = secondPoint[0] - firstPoint[0];
+            const lonDiff = secondPoint[1] - firstPoint[1];
+            const distance = Math.sqrt(latDiff * latDiff + lonDiff * lonDiff);
+
+            const perpLatOffset = (lonDiff / distance) * 0.001; // ~100m
+            const perpLonOffset = (-latDiff / distance) * 0.001;
+
+            const deviantLat = firstPoint[0] + perpLatOffset;
+            const deviantLon = firstPoint[1] + perpLonOffset;
+
+            log(`Deviating to: [${deviantLat.toFixed(6)}, ${deviantLon.toFixed(6)}]`, 'warning');
+
+            // Inject deviant position
+            appWindow.injectTestPosition(deviantLat, deviantLon);
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Send reroute request
+            ws.send(JSON.stringify({
+                type: 'route_request',
+                start: { lat: deviantLat, lon: deviantLon },
+                end: { lat: 57.7000, lon: 11.9500 }
+            }));
+
+            updateStatus('Deviation injected - reroute should trigger!', 'success');
+        }
+
+        function reset() {
+            currentRoute = null;
+            currentPositionIndex = 0;
+            document.getElementById('simulateBtn').disabled = true;
+            document.getElementById('deviateBtn').disabled = true;
+            updateStatus('Reset - ready to calculate new route', 'info');
+        }
+
+        // Wait for iframe to load
+        appFrame.onload = () => {
+            appWindow = appFrame.contentWindow;
+            appReady = true;
+            updateStatus('App loaded and ready for injection', 'success');
+            log('Iframe loaded - ready to inject test data', 'success');
+        };
+
+        window.addEventListener('load', () => {
+            log('Test harness loaded', 'info');
+        });
+    </script>
+</body>
+
+</html>

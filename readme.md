@@ -52,4 +52,17 @@ Lätt att utveckla och underhålla frontend och backend separat.
 Frontend kan distribueras på valfri plattform.
 Enkel skalbarhet.
 
+## Snabb rutin om processen inte stänger:
+
+Hitta processen:
+lsof -nP -iTCP:18080 -sTCP:LISTEN
+
+Döda den:
+kill -9 <PID>
+Eller generellt: pkill -f /home/cbengt21/repos/my-navi-app/build/backend
+
+Starta backend igen:
+cd /home/cbengt21/repos/my-navi-app/build
+./backend
+
 
